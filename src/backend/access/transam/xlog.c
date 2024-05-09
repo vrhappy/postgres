@@ -1188,13 +1188,13 @@ CopyXLogRecordToWAL(int write_len, bool isLogSwitch, XLogRecData *rdata,
 		char	   *rdata_data = rdata->data;
 		int			rdata_len = rdata->len;
 
-		while (rdata_len > freespace)
+		while (rdata_len > freespace) //** 如果radta_len大于freespace，说明该page页的剩余空间不足以写入radata中的数据，即牵涉到跨page页
 		{
 			/*
 			 * Write what fits on this page, and continue on the next page.
 			 */
 			Assert(CurrPos % XLOG_BLCKSZ >= SizeOfXLogShortPHD || freespace == 0);
-			memcpy(currpos, rdata_data, freespace);
+			memcpy(currpos, rdata_data, freespace); //** 由于page页不够写入整个rdata_len的数据，就只拷贝page页剩余长度的数据到WAL buffer
 			rdata_data += freespace;
 			rdata_len -= freespace;
 			written += freespace;
@@ -1229,13 +1229,13 @@ CopyXLogRecordToWAL(int write_len, bool isLogSwitch, XLogRecData *rdata,
 		}
 
 		Assert(CurrPos % XLOG_BLCKSZ >= SizeOfXLogShortPHD || rdata_len == 0);
-		memcpy(currpos, rdata_data, rdata_len);
+		memcpy(currpos, rdata_data, rdata_len); //** 到这里就是page页的剩余空间大于等于要写入的长度rdata_len情况了，可以直接写入到WAL buffer中
 		currpos += rdata_len;
 		CurrPos += rdata_len;
 		freespace -= rdata_len;
 		written += rdata_len;
 
-		rdata = rdata->next;
+		rdata = rdata->next; //** 处理下一个rdata
 	}
 	Assert(written == write_len);
 
@@ -1245,7 +1245,7 @@ CopyXLogRecordToWAL(int write_len, bool isLogSwitch, XLogRecData *rdata,
 	 * have already reserved that space, but we need to actually fill it.
 	 */
 	if (isLogSwitch && XLogSegmentOffset(CurrPos, wal_segment_size) != 0)
-	{
+	{ //** 对于日志切换的情况，仅仅拷贝XLog日志到WAL buffer中是不够的，还需要把这个segment file中的所有page都初始化
 		/* An xlog-switch record doesn't contain any data besides the header */
 		Assert(write_len == SizeOfXLogRecord);
 
@@ -1285,7 +1285,7 @@ CopyXLogRecordToWAL(int write_len, bool isLogSwitch, XLogRecData *rdata,
 			currpos = GetXLogBuffer(CurrPos, tli);
 			MemSet(currpos, 0, SizeOfXLogShortPHD);
 
-			CurrPos += XLOG_BLCKSZ;
+			CurrPos += XLOG_BLCKSZ; //** 处理下一个page页
 		}
 	}
 	else
@@ -1549,7 +1549,7 @@ GetXLogBuffer(XLogRecPtr ptr, TimeLineID tli)
 {
 	int			idx;
 	XLogRecPtr	endptr;
-	static uint64 cachedPage = 0;
+	static uint64 cachedPage = 0; //** 静态变量缓存上次获取的WAL Buffer Page页号，用于下次访问同一页面时做快速判断
 	static char *cachedPos = NULL;
 	XLogRecPtr	expectedEndPtr;
 
@@ -1557,7 +1557,7 @@ GetXLogBuffer(XLogRecPtr ptr, TimeLineID tli)
 	 * Fast path for the common case that we need to access again the same
 	 * page as last time.
 	 */
-	if (ptr / XLOG_BLCKSZ == cachedPage)
+	if (ptr / XLOG_BLCKSZ == cachedPage) //** 快速判断要获取的lsn是不是落在同一个page页
 	{
 		Assert(((XLogPageHeader) cachedPos)->xlp_magic == XLOG_PAGE_MAGIC);
 		Assert(((XLogPageHeader) cachedPos)->xlp_pageaddr == ptr - (ptr % XLOG_BLCKSZ));
@@ -1569,7 +1569,7 @@ GetXLogBuffer(XLogRecPtr ptr, TimeLineID tli)
 	 * particular buffer.  That way we can easily calculate the buffer a given
 	 * page must be loaded into, from the XLogRecPtr alone.
 	 */
-	idx = XLogRecPtrToBufIdx(ptr);
+	idx = XLogRecPtrToBufIdx(ptr); //** 获取LSN在WAL buffer缓冲区中映射的page页的index号
 
 	/*
 	 * See what page is loaded in the buffer at the moment. It could be the
@@ -1592,7 +1592,7 @@ GetXLogBuffer(XLogRecPtr ptr, TimeLineID tli)
 	expectedEndPtr += XLOG_BLCKSZ - ptr % XLOG_BLCKSZ;
 
 	endptr = XLogCtl->xlblocks[idx];
-	if (expectedEndPtr != endptr)
+	if (expectedEndPtr != endptr) //** 如果预期页尾LSN与xlblocks中存储的页尾LSN不同，说明对应缓冲区的页要么没初始化、要么需要被重用了
 	{
 		XLogRecPtr	initializedUpto;
 
@@ -1621,7 +1621,7 @@ GetXLogBuffer(XLogRecPtr ptr, TimeLineID tli)
 
 		WALInsertLockUpdateInsertingAt(initializedUpto);
 
-		AdvanceXLInsertBuffer(ptr, tli, false);
+		AdvanceXLInsertBuffer(ptr, tli, false); //** 请求WAL Buffer扩充，向前递进到ptr指向的位置
 		endptr = XLogCtl->xlblocks[idx];
 
 		if (expectedEndPtr != endptr)
@@ -1810,7 +1810,7 @@ AdvanceXLInsertBuffer(XLogRecPtr upto, TimeLineID tli, bool opportunistic)
 		 * already written out.
 		 */
 		OldPageRqstPtr = XLogCtl->xlblocks[nextidx];
-		if (LogwrtResult.Write < OldPageRqstPtr)
+		if (LogwrtResult.Write < OldPageRqstPtr) //** 如果判断已初始化的最大lsn大于已写出到日志文件的lsn，说明WAL buffer中还存在未写出到文件的日志
 		{
 			/*
 			 * Nope, got work to do. If we just want to pre-initialize as much
@@ -1819,7 +1819,7 @@ AdvanceXLInsertBuffer(XLogRecPtr upto, TimeLineID tli, bool opportunistic)
 			if (opportunistic)
 				break;
 
-			/* Before waiting, get info_lck and update LogwrtResult */
+			/* Before waiting, get info_lck and update LogwrtResult */ //** 从共享变量中获取最新的值
 			SpinLockAcquire(&XLogCtl->info_lck);
 			if (XLogCtl->LogwrtRqst.Write < OldPageRqstPtr)
 				XLogCtl->LogwrtRqst.Write = OldPageRqstPtr;
@@ -1830,7 +1830,7 @@ AdvanceXLInsertBuffer(XLogRecPtr upto, TimeLineID tli, bool opportunistic)
 			 * Now that we have an up-to-date LogwrtResult value, see if we
 			 * still need to write it or if someone else already did.
 			 */
-			if (LogwrtResult.Write < OldPageRqstPtr)
+			if (LogwrtResult.Write < OldPageRqstPtr) //** 再判断一遍，以免在等锁时已经有其他进程将WAL写出到文件了
 			{
 				/*
 				 * Must acquire write lock. Release WALBufMappingLock first,
@@ -1931,11 +1931,11 @@ AdvanceXLInsertBuffer(XLogRecPtr upto, TimeLineID tli, bool opportunistic)
 		 */
 		pg_write_barrier();
 
-		*((volatile XLogRecPtr *) &XLogCtl->xlblocks[nextidx]) = NewPageEndPtr;
+		*((volatile XLogRecPtr *) &XLogCtl->xlblocks[nextidx]) = NewPageEndPtr; //** 更新刚初始化的page页index在xlblocks中的值
 
 		XLogCtl->InitializedUpTo = NewPageEndPtr;
 
-		npages++;
+		npages++; //** 计算初始化page的个数
 	}
 	LWLockRelease(WALBufMappingLock);
 
