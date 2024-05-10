@@ -558,14 +558,17 @@ ProcessCopyOptions(ParseState *pstate,
 	}
 
 	/* Only single-byte delimiter strings are supported. */
-	if (strlen(opts_out->delim) != 1)
+	if (strlen(opts_out->delim) != 1 && !enableMultiDelimiter)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("COPY delimiter must be a single one-byte character")));
+	if (enableMultiDelimiter) {
+		opts_out->delim_len = strlen(opts_out->delim);
+	}
 
 	/* Disallow end-of-line characters */
-	if (strchr(opts_out->delim, '\r') != NULL ||
-		strchr(opts_out->delim, '\n') != NULL)
+	if (!enableMultiDelimiter && (strchr(opts_out->delim, '\r') != NULL ||
+		strchr(opts_out->delim, '\n') != NULL))
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 				 errmsg("COPY delimiter cannot be newline or carriage return")));

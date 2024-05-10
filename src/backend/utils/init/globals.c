@@ -120,6 +120,7 @@ int			DateOrder = DATEORDER_MDY;
 int			IntervalStyle = INTSTYLE_POSTGRES;
 
 bool		enableFsync = true;
+bool        enableMultiDelimiter = true; /* switch to enable multiple-delimiter or not */
 bool		allowSystemTableMods = false;
 int			work_mem = 4096;
 double		hash_mem_multiplier = 1.0;

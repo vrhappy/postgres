@@ -855,8 +855,15 @@ DoCopyTo(CopyToState cstate)
 				int			attnum = lfirst_int(cur);
 				char	   *colname;
 
-				if (hdr_delim)
-					CopySendChar(cstate, cstate->opts.delim[0]);
+				if (hdr_delim){
+					if (enableMultiDelimiter) {
+						CopySendString(cstate, cstate->opts.delim);
+					}
+					else {
+						CopySendChar(cstate, cstate->opts.delim[0]);
+
+					}
+				}
 				hdr_delim = true;
 
 				colname = NameStr(TupleDescAttr(tupDesc, attnum - 1)->attname);
@@ -954,8 +961,13 @@ CopyOneRowTo(CopyToState cstate, TupleTableSlot *slot)
 
 		if (!cstate->opts.binary)
 		{
-			if (need_delim)
-				CopySendChar(cstate, cstate->opts.delim[0]);
+			if (need_delim) {
+				if (enableMultiDelimiter) {
+					CopySendString(cstate, cstate->opts.delim);
+				} else {
+					CopySendChar(cstate, cstate->opts.delim[0]);
+				}
+			}
 			need_delim = true;
 		}
 
@@ -1013,6 +1025,8 @@ CopyAttributeOutText(CopyToState cstate, char *string)
 	char	   *start;
 	char		c;
 	char		delimc = cstate->opts.delim[0];
+	char		*delims = cstate->opts.delim;
+	int			delim_len = cstate->opts.delim_len;
 
 	if (cstate->need_transcoding)
 		ptr = pg_server_to_any(string, strlen(string), cstate->file_encoding);
@@ -1069,7 +1083,7 @@ CopyAttributeOutText(CopyToState cstate, char *string)
 						break;
 					default:
 						/* If it's the delimiter, must backslash it */
-						if (c == delimc)
+						if (!enableMultiDelimiter && c == delimc)
 							break;
 						/* All ASCII control chars are length 1 */
 						ptr++;
@@ -1081,11 +1095,18 @@ CopyAttributeOutText(CopyToState cstate, char *string)
 				CopySendChar(cstate, c);
 				start = ++ptr;	/* do not include char in next run */
 			}
-			else if (c == '\\' || c == delimc)
+			else if (c == '\\' || (!enableMultiDelimiter && c == delimc))
 			{
 				DUMPSOFAR();
 				CopySendChar(cstate, '\\');
 				start = ptr++;	/* we include char in next run */
+			}
+			else if (enableMultiDelimiter && strlen(ptr)>=delim_len && strncmp(ptr, delims, delim_len) == 0)
+			{
+				DUMPSOFAR();
+				CopySendChar(cstate, '\\');
+				ptr = ptr + delim_len;
+				start = ptr;	/* we include char in next run */
 			}
 			else if (IS_HIGHBIT_SET(c))
 				ptr += pg_encoding_mblen(cstate->file_encoding, ptr);
@@ -1129,7 +1150,7 @@ CopyAttributeOutText(CopyToState cstate, char *string)
 						break;
 					default:
 						/* If it's the delimiter, must backslash it */
-						if (c == delimc)
+						if (!enableMultiDelimiter && c == delimc)
 							break;
 						/* All ASCII control chars are length 1 */
 						ptr++;
@@ -1141,11 +1162,18 @@ CopyAttributeOutText(CopyToState cstate, char *string)
 				CopySendChar(cstate, c);
 				start = ++ptr;	/* do not include char in next run */
 			}
-			else if (c == '\\' || c == delimc)
+			else if (c == '\\' || (!enableMultiDelimiter && c == delimc))
 			{
 				DUMPSOFAR();
 				CopySendChar(cstate, '\\');
 				start = ptr++;	/* we include char in next run */
+			}
+			else if (enableMultiDelimiter && strlen(ptr)>=delim_len && strncmp(ptr, delims, delim_len) == 0)
+			{
+				DUMPSOFAR();
+				CopySendChar(cstate, '\\');
+				ptr = ptr + delim_len;
+				start = ptr;	/* we include char in next run */
 			}
 			else
 				ptr++;
@@ -1196,7 +1224,7 @@ CopyAttributeOutCSV(CopyToState cstate, char *string,
 
 			while ((c = *tptr) != '\0')
 			{
-				if (c == delimc || c == quotec || c == '\n' || c == '\r')
+				if ((!enableMultiDelimiter && c == delimc) || c == quotec || c == '\n' || c == '\r')
 				{
 					use_quote = true;
 					break;

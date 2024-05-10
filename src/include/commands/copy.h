@@ -37,6 +37,7 @@ typedef struct CopyFormatOptions
 	int			null_print_len; /* length of same */
 	char	   *null_print_client;	/* same converted to file encoding */
 	char	   *delim;			/* column delimiter (must be 1 byte) */
+	int        delim_len;       /* for enable_multi_delimiter, delim_len may larger than 1 */
 	char	   *quote;			/* CSV quote char (must be 1 byte) */
 	char	   *escape;			/* CSV escape char (must be 1 byte) */
 	List	   *force_quote;	/* list of column names */

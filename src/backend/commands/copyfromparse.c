@@ -1429,6 +1429,8 @@ static int
 CopyReadAttributesText(CopyFromState cstate)
 {
 	char		delimc = cstate->opts.delim[0];
+	char        *delims = cstate->opts.delim;
+	int         delim_len = cstate->opts.delim_len;
 	int			fieldno;
 	char	   *output_ptr;
 	char	   *cur_ptr;
@@ -1505,9 +1507,15 @@ CopyReadAttributesText(CopyFromState cstate)
 			if (cur_ptr >= line_end_ptr)
 				break;
 			c = *cur_ptr++;
-			if (c == delimc)
+			if (c == delimc && (!enableMultiDelimiter || strncmp(cur_ptr, delims + 1, delim_len-1) == 0))
 			{
 				found_delim = true;
+				if (enableMultiDelimiter) {
+					int n = delim_len;
+					while (n-- > 1) { // should jump the delimiter?
+						*cur_ptr++;
+					}
+				}
 				break;
 			}
 			if (c == '\\')
@@ -1657,6 +1665,8 @@ static int
 CopyReadAttributesCSV(CopyFromState cstate)
 {
 	char		delimc = cstate->opts.delim[0];
+	char        *delims = cstate->opts.delim;
+	int         delim_len = cstate->opts.delim_len;
 	char		quotec = cstate->opts.quote[0];
 	char		escapec = cstate->opts.escape[0];
 	int			fieldno;
@@ -1735,7 +1745,7 @@ CopyReadAttributesCSV(CopyFromState cstate)
 					goto endfield;
 				c = *cur_ptr++;
 				/* unquoted field delimiter */
-				if (c == delimc)
+				if (c == delimc && (!enableMultiDelimiter || strncmp(cur_ptr, delims + 1, delim_len-1) == 0))
 				{
 					found_delim = true;
 					goto endfield;

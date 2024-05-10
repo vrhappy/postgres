@@ -1235,6 +1235,15 @@ static struct config_bool ConfigureNamesBool[] =
 		NULL, NULL, NULL
 	},
 	{
+		{"multi_delimiter", PGC_SIGHUP, DEVELOPER_OPTIONS,
+			gettext_noop("copy command support multiple delimiter."),
+			NULL
+		},
+		&enableMultiDelimiter,
+		true,
+		NULL, NULL, NULL
+	},
+	{
 		{"ignore_checksum_failure", PGC_SUSET, DEVELOPER_OPTIONS,
 			gettext_noop("Continues processing after a checksum failure."),
 			gettext_noop("Detection of a checksum failure normally causes PostgreSQL to "
