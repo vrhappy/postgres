@@ -1195,6 +1195,8 @@ CopyAttributeOutCSV(CopyToState cstate, char *string,
 	char	   *start;
 	char		c;
 	char		delimc = cstate->opts.delim[0];
+	char		*delims = cstate->opts.delim;
+	int		delim_len = cstate->opts.delim_len;
 	char		quotec = cstate->opts.quote[0];
 	char		escapec = cstate->opts.escape[0];
 
@@ -1224,7 +1226,7 @@ CopyAttributeOutCSV(CopyToState cstate, char *string,
 
 			while ((c = *tptr) != '\0')
 			{
-				if ((!enableMultiDelimiter && c == delimc) || c == quotec || c == '\n' || c == '\r')
+				if ((c == delimc && (!enableMultiDelimiter || strncmp(delims, tptr, delim_len) == 0)) || c == quotec || c == '\n' || c == '\r')
 				{
 					use_quote = true;
 					break;

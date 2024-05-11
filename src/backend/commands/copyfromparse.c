@@ -1509,13 +1509,11 @@ CopyReadAttributesText(CopyFromState cstate)
 			c = *cur_ptr++;
 			if (c == delimc && (!enableMultiDelimiter || strncmp(cur_ptr, delims + 1, delim_len-1) == 0))
 			{
-				found_delim = true;
 				if (enableMultiDelimiter) {
-					int n = delim_len;
-					while (n-- > 1) { // should jump the delimiter?
-						*cur_ptr++;
-					}
+					// should jump the delimiter?
+					cur_ptr += delim_len-1;
 				}
+				found_delim = true;
 				break;
 			}
 			if (c == '\\')
@@ -1747,6 +1745,9 @@ CopyReadAttributesCSV(CopyFromState cstate)
 				/* unquoted field delimiter */
 				if (c == delimc && (!enableMultiDelimiter || strncmp(cur_ptr, delims + 1, delim_len-1) == 0))
 				{
+					if (enableMultiDelimiter) {
+						cur_ptr += delim_len-1;
+					}
 					found_delim = true;
 					goto endfield;
 				}
