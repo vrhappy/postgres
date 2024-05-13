@@ -613,10 +613,10 @@ ProcessCopyOptions(ParseState *pstate,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("COPY quote must be a single one-byte character")));
 
-	if (opts_out->csv_mode && opts_out->delim[0] == opts_out->quote[0])
+	if (opts_out->csv_mode && strchr(opts_out->delim, opts_out->quote[0]) != NULL)
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("COPY delimiter and quote must be different")));
+				 errmsg("COPY quote must not appear in the delimiter")));
 
 	/* Check escape */
 	if (!opts_out->csv_mode && opts_out->escape != NULL)
@@ -662,9 +662,35 @@ ProcessCopyOptions(ParseState *pstate,
 
 	/* Don't allow the delimiter to appear in the null string. */
 	if (strchr(opts_out->null_print, opts_out->delim[0]) != NULL)
-		ereport(ERROR,
-				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-				 errmsg("COPY delimiter must not appear in the NULL specification")));
+	{
+		if (!enableMultiDelimiter)
+			ereport(ERROR,
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					 errmsg("COPY delimiter must not appear in the NULL specification")));
+		else {
+			/* Don't allow the null string contains the delimiter string. */
+			if (strlen(opts_out->null_print) >= strlen(opts_out->delim)) {
+				int remain_len = strlen(opts_out->null_print);
+				int delim_len = strlen(opts_out->delim);
+				bool found_delim = false;
+				char *null_cur_p = opts_out->null_print;
+				while (remain_len-- >= delim_len)
+				{
+					/* compare the string */
+					if (strncmp(null_cur_p++, opts_out->delim, delim_len) == 0) {
+						found_delim = true;
+						break;
+					}
+				}
+				if (found_delim)
+				{
+					ereport(ERROR,
+						(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+						 errmsg("COPY delimiter must not appear in the NULL specification")));
+				}
+			}
+		}
+	}
 
 	/* Don't allow the CSV quote char to appear in the null string. */
 	if (opts_out->csv_mode &&
