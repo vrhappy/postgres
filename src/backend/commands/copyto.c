@@ -1172,6 +1172,7 @@ CopyAttributeOutText(CopyToState cstate, char *string)
 			{
 				DUMPSOFAR();
 				CopySendChar(cstate, '\\');
+				CopySendString(cstate, delims);
 				ptr = ptr + delim_len;
 				start = ptr;	/* we include char in next run */
 			}
