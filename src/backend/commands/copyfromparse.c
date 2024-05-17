@@ -1521,6 +1521,23 @@ CopyReadAttributesText(CopyFromState cstate)
 				if (cur_ptr >= line_end_ptr)
 					break;
 				c = *cur_ptr++;
+				if (enableMultiDelimiter)
+				{
+					/* this is not a real delimiter */
+					if (strncmp(cur_ptr-1, delims, delim_len) == 0)
+					{
+						*output_ptr++ = c;
+						int n = delim_len;
+						while (--n > 0)
+						{
+							/* record into output */
+							*output_ptr++ = *cur_ptr++;
+						}
+						
+						/* continue the loop */
+						continue;
+					}
+				}
 				switch (c)
 				{
 					case '0':
